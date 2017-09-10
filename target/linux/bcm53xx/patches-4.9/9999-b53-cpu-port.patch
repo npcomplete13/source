@@ -1,0 +1,48 @@
+--- a/drivers/net/dsa/b53/b53_common.c
++++ b/drivers/net/dsa/b53/b53_common.c
+@@ -357,9 +357,8 @@ static void b53_enable_vlan(struct b53_d
+ 		b53_read8(dev, B53_VLAN_PAGE, B53_VLAN_CTRL5, &vc5);
+ 	}
+ 
+-	mgmt &= ~SM_SW_FWD_MODE;
+-
+ 	if (enable) {
++		mgmt |= SM_SW_FWD_MODE;
+ 		vc0 |= VC0_VLAN_EN | VC0_VID_CHK_EN | VC0_VID_HASH_VID;
+ 		vc1 |= VC1_RX_MCST_UNTAG_EN | VC1_RX_MCST_FWD_EN;
+ 		vc4 &= ~VC4_ING_VID_CHECK_MASK;
+@@ -373,6 +372,7 @@ static void b53_enable_vlan(struct b53_d
+ 			vc1 |= VC1_RX_MCST_TAG_EN;
+ 
+ 	} else {
++		mgmt &= ~SM_SW_FWD_MODE;
+ 		vc0 &= ~(VC0_VLAN_EN | VC0_VID_CHK_EN | VC0_VID_HASH_VID);
+ 		vc1 &= ~(VC1_RX_MCST_UNTAG_EN | VC1_RX_MCST_FWD_EN);
+ 		vc4 &= ~VC4_ING_VID_CHECK_MASK;
+@@ -807,6 +807,8 @@ static void b53_adjust_link(struct dsa_s
+ 	if (port == dev->cpu_port) {
+ 		off = B53_PORT_OVERRIDE_CTRL;
+ 		reg = PORT_OVERRIDE_EN;
++	        if(is5301x(dev))
++			reg |= (PORT_OVERRIDE_SPEED_1000M | PORT_OVERRIDE_SPEED_2000M);
+ 	} else {
+ 		off = B53_GMII_PORT_OVERRIDE_CTRL(port);
+ 		reg = GMII_PO_EN;
+@@ -838,7 +840,7 @@ static void b53_adjust_link(struct dsa_s
+ 	}
+ 
+ 	/* Enable flow control on BCM5301x's CPU port */
+-	if (is5301x(dev) && port == dev->cpu_port)
++	if (port == dev->cpu_port || (is5301x(dev) && port == 0))
+ 		reg |= PORT_OVERRIDE_RX_FLOW | PORT_OVERRIDE_TX_FLOW;
+ 
+ 	if (phydev->pause) {
+@@ -1619,7 +1621,7 @@ static const struct b53_chip_data b53_sw
+ 		.vlans = 4096,
+ 		.enabled_ports = 0x1bf,
+ 		.arl_entries = 4,
+-		.cpu_port = B53_CPU_PORT_25, /* TODO: auto detect */
++		.cpu_port = B53_CPU_PORT, /* TODO: auto detect */
+ 		.vta_regs = B53_VTA_REGS,
+ 		.duplex_reg = B53_DUPLEX_STAT_GE,
+ 		.jumbo_pm_reg = B53_JUMBO_PORT_MASK,

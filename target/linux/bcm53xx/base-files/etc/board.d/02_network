@@ -8,7 +8,7 @@
 
 board_config_update
 
-board=$(board_name)
+board=$(cat /proc/device-tree/compatible | tr '\0' '\t' | cut -f 1)
 
 case "$board" in
 tenda,ac9)
@@ -33,9 +33,11 @@ asus,rt-ac87u)
 	etXmacaddr=$(nvram get et1macaddr)
 	;;
 dlink,dir-885l | \
+linksys,panamera | \
 netgear,r7900 | \
 netgear,r8000 | \
-netgear,r8500)
+netgear,r8500 | \
+linksys,panamera)
 	ifname=eth2
 	etXmacaddr=$(nvram get et2macaddr)
 	;;
@@ -65,6 +67,32 @@ netgear,r8500)
 	[ -n "$wan_macaddr" ] && ucidef_set_interface_macaddr "wan" "$wan_macaddr"
 
 	board_config_flush
+	exit 0
+	;;
+esac
+
+case "$board" in
+linksys,panamera)
+
+	# These devices should use eth2 so their eth0 interface often has no MAC
+	# assigned. Manually assign eth2's MAC to the LAN.
+
+	et0macaddr="$(nvram get et0macaddr)"
+	et1macaddr="$(nvram get et1macaddr)"
+	et2macaddr="$(nvram get et2macaddr)"
+	wan_macaddr=$et2macaddr
+
+	ip link set eth0 address $et0macaddr
+	ip link set eth1 address $et1macaddr
+	ip link set eth2 address $et2macaddr
+
+	ip link set wan address $wan_macaddr
+
+	ucidef_set_interface_lan "lan1 eth2.101"
+	ucidef_set_interface_wan "wan eth2.102"
+
+	board_config_flush
+	
 	exit 0
 	;;
 esac

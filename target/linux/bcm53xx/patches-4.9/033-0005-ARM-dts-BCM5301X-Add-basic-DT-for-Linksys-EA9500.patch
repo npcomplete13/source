@@ -30,7 +30,7 @@ Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
  	bcm94708.dtb \
 --- /dev/null
 +++ b/arch/arm/boot/dts/bcm47094-linksys-panamera.dts
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,311 @@
 +/*
 + * Copyright (C) 2017 Rafał Miłecki <rafal@milecki.pl>
 + *
@@ -39,8 +39,8 @@ Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
 +
 +/dts-v1/;
 +
-+#include "bcm47094.dtsi"
-+#include "bcm5301x-nand-cs0-bch8.dtsi"
++#include "bcm5301x-no-usb3-phy.dtsi"
++#include "bcm5301x-nand-cs0-bch1.dtsi"
 +
 +/ {
 +	compatible = "linksys,panamera", "brcm,bcm47094", "brcm,bcm4708";
@@ -55,15 +55,290 @@ Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
 +		       0x88000000 0x08000000>;
 +	};
 +
-+	gpio-keys {
-+		compatible = "gpio-keys";
++	pwm: pwm@18002000 {
++		compatible = "brcm,iproc-pwm";
++		reg = <0x18002000 0x28>;
++		clocks = <&osc>;
++		pwm-cells = <3>;
++	};
++
++	mdio_mii_mux {
++        compatible = "mdio-mux-mmioreg";
++        mdio-parent-bus = <&mdio>;
++        #address-cells = <1>;
++        #size-cells = <0>;
++        reg = <0x1800c1c0 0x4>;
++        mux-mask = <0xc0>;       /* BIT(6) = MDC, BIT(7) = MDIO */
++
++        mdio_mii:mdio_mii@00 {
++			reg = <0x00>;
++			#size-cells = <1>;
++			#address-cells = <0>;
++        };
++	};
++
++   mdio_ext_mux {
++        compatible = "mdio-mux-mmioreg";
++        mdio-parent-bus = <&mdio_mii>;
++        #address-cells = <1>;
++        #size-cells = <0>;
++        reg = <0x18003000 0x4>;
++        mux-mask = <0x200>;       
++
++        mdio_int:mdio_int@0 {    /* BIT(9) = 0 => internal mdio */
++			reg = <0x0>;
++			#size-cells = <1>;
++			#address-cells = <0>;
++
++        	usb3_phy:usb3_phy@10 {
++        		compatible = "brcm,ns-bx-usb3-phy";
++        		reg = <0x10>;
++        		usb3-dmp-syscon = <&usb3_dmp>;
++        		#phy-cells = <0>;        		
++        	};
++		 };
++
++        mdio_ext:mdio_ext@200 {   /* BIT(9) = 1 => external mdio */
++			reg = <0x200>;
++			#size-cells = <1>;
++			#address-cells = <0>;
++		 };
++   };
++    
++	 usb3_dmp: syscon@18105000 {
++        reg = <0x18105000 0x1000>;
++    };
++
++    usb3: usb3@23000 {
++    	reg = <0x00023000 0x1000>;
++    
++    	#address-cells = <1>;
++    	#size-cells = <1>;
++    	ranges;
++    
++    	interrupt-parent = <&gic>;
++    
++    	xhci: xhci@23000 {
++    		#usb-cells = <0>;
++    
++    		compatible = "generic-xhci";
++    		reg = <0x00023000 0x1000>;
++    		interrupts = <GIC_SPI 80 IRQ_TYPE_LEVEL_HIGH>;
++    		phys = <&usb3_phy>;
++    		phy-names = "usb";
++    	};
++    };
++
++    gpio-keys {
++        compatible = "gpio-keys";
++        #address-cells = <1>;
++        #size-cells = <0>;
++
++        wps {
++            label = "WPS";
++            linux,code = <KEY_WPS_BUTTON>;
++            gpios = <&chipcommon 3 GPIO_ACTIVE_LOW>;
++        };
++
++        rfkill {
++        	label = "WiFi";
++        	linux,code = <KEY_RFKILL>;
++        	gpios = <&chipcommon 16 GPIO_ACTIVE_LOW>;
++        };
++
++        reset {
++        	label = "Reset";
++        	linux,code = <KEY_RESTART>;
++        	gpios = <&chipcommon 17 GPIO_ACTIVE_LOW>;
++        };
++    };
++
++    leds {
++        compatible = "gpio-leds";
++
++        wps {
++        	label = "bcm53xx:white:wps";
++        	gpios = <&chipcommon 22 GPIO_ACTIVE_LOW>;
++        };
++
++        usb2 {
++        	label = "bcm53xx:green:usb2";
++        	gpios = <&chipcommon 1 GPIO_ACTIVE_LOW>;
++        };
++
++        usb3 {
++        	label = "bcm53xx:green:usb3";
++        	gpios = <&chipcommon 2 GPIO_ACTIVE_LOW>;
++        };
++
++        power {
++        	label = "bcm53xx:white:power";
++        	gpios = <&chipcommon 4 GPIO_ACTIVE_HIGH>;
++        };
++
++        wifi-disabled {
++        	label = "bcm53xx:amber:wifi-disabled";
++        	gpios = <&chipcommon 0 GPIO_ACTIVE_LOW>;
++        };
++
++        wifi-enabled {
++        	label = "bcm53xx:white:wifi-enabled";
++        	gpios = <&chipcommon 5 GPIO_ACTIVE_HIGH>;
++        };
++
++        bluebar1 {
++        	label = "bcm53xx:white:bluebar1";
++        	gpios = <&chipcommon 11 GPIO_ACTIVE_HIGH>;
++        };
++
++        bluebar2 {
++        	label = "bcm53xx:white:bluebar2";
++        	gpios = <&chipcommon 12 GPIO_ACTIVE_HIGH>;
++        };
++
++        bluebar3 {
++        	label = "bcm53xx:white:bluebar3";
++        	gpios = <&chipcommon 15 GPIO_ACTIVE_LOW>;    //actHigh -> actLow
++        };
++
++        bluebar4 {
++        	label = "bcm53xx:white:bluebar4";
++        	gpios = <&chipcommon 18 GPIO_ACTIVE_HIGH>;
++        };
++
++        bluebar5 {
++        	label = "bcm53xx:white:bluebar5";
++        	gpios = <&chipcommon 19 GPIO_ACTIVE_HIGH>;
++        };
++
++        bluebar6 {
++        	label = "bcm53xx:white:bluebar6";
++        	gpios = <&chipcommon 20 GPIO_ACTIVE_HIGH>;
++        };
++
++        bluebar7 {
++        	label = "bcm53xx:white:bluebar7";
++        	gpios = <&chipcommon 21 GPIO_ACTIVE_HIGH>;
++        };
++
++        bluebar8 {
++        	label = "bcm53xx:white:bluebar8";
++        	gpios = <&chipcommon 8 GPIO_ACTIVE_HIGH>;
++        };
++
++    };
++};
++
++&usb2 {
++	vcc-gpio = <&chipcommon 13 GPIO_ACTIVE_HIGH>;
++};
++
++&usb3 {
++	vcc-gpio = <&chipcommon 14 GPIO_ACTIVE_HIGH>;
++};
++
++&srab {
++	compatible = "brcm,bcm53012-srab", "brcm,bcm5301x-srab";
++	status = "okay";
++	dsa,member = <0 0>;
++
++	ports {
 +		#address-cells = <1>;
 +		#size-cells = <0>;
 +
-+		wps {
-+			label = "WPS";
-+			linux,code = <KEY_WPS_BUTTON>;
-+			gpios = <&chipcommon 3 GPIO_ACTIVE_LOW>;
++		port@1 {
++			reg = <1>;
++			label = "lan7";
 +		};
-+	};
++
++		port@2 {
++			reg = <2>;
++			label = "lan4";
++		};
++
++		port@3 {
++			reg = <3>;
++			label = "lan8";
++		};
++
++		port@4 {
++			reg = <4>;
++			label = "wan";
++		};
++
++		port@8 {		
++			reg = <8>;
++			ethernet = <&gmac2>;	
++			label = "cpu";
++
++			fixed-link {
++				speed = <1000>;
++				full-duplex;
++			};
++		};
++
++		sw0port0: port@0 {
++			reg = <0>;	
++			label = "extswitch";
++           ethernet = <&sw1port8>;
++
++			fixed-link {
++				speed = <1000>;
++				full-duplex;
++			};
++		};
++	};  
++};
++
++&mdio_ext {
++        switch@0  {
++        	 compatible = "brcm,bcm53125";
++            #address-cells = <1>;
++            #size-cells = <0>;
++            reset-gpios = <&chipcommon 10 GPIO_ACTIVE_LOW>;
++            reset-names = "robo_reset";
++        	 reg = <0>;
++        	 dsa,member = <1 0>;
++        
++            ports {
++                #address-cells = <1>;
++                #size-cells = <0>;
++        
++                port@0 {
++                        reg = <0>;
++                        label = "lan1";
++                };
++        
++                port@1 {
++                        reg = <1>;
++                        label = "lan5";
++                };
++        
++                port@2 {
++                        reg = <2>;
++                        label = "lan2";
++                };
++        
++                port@3 {
++                        reg = <3>;
++                        label = "lan6";
++                };
++        
++                port@4 {
++                        reg = <4>;
++                        label = "lan3";
++                };
++        
++                sw1port8:port@8 {
++                        reg = <8>;
++                        ethernet = <&sw0port0>;	
++						 label = "cpu";
++
++						 fixed-link {
++						     speed = <1000>;
++						     full-duplex;
++						 };
++                };
++            };
++        };
 +};
